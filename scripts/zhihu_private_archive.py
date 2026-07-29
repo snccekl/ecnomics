@@ -134,7 +134,21 @@ def fetch_answers(user_token: str, cookie: str, limit: int, delay: float) -> lis
       }
     )
     url = f"https://www.zhihu.com/api/v4/members/{user_token}/answers?{params}"
-    payload = request_json(url, cookie, referer)
+    payload = None
+    last_error: Exception | None = None
+    for attempt in range(1, 4):
+      try:
+        payload = request_json(url, cookie, referer)
+        break
+      except Exception as exc:
+        last_error = exc
+        print(f"Answer list request failed at offset={offset}, attempt={attempt}: {exc}", flush=True)
+        time.sleep(delay * attempt * 2)
+    if payload is None:
+      if answers:
+        print(f"Stopping answer list fetch with {len(answers)} saved answers after: {last_error}", flush=True)
+        break
+      raise RuntimeError(f"Could not fetch first answer list page: {last_error}")
     batch = payload.get("data") or []
     if not batch:
       break
